@@ -23,39 +23,40 @@ The implementation uses Google Tag Manager (GTM) to declaratively expose tools t
 ### 1. Client-Side Registration (GTM & API Standards Compatibility)
 Tools are registered dynamically via Google Tag Manager using modern WebMCP standards:
 * **API Compatibility:** Adheres to the latest standards using `document.modelContext` with fallbacks (`document.modelContext || window.navigator.modelContext`).
-* **Execution Cancellation (Chrome 153+):** Leverages `context.signal` (`AbortSignal`) passed to the `execute(input, context)` function, ensuring in-flight `fetch()` requests are aborted if the agent or user cancels the action.
+* **Execution Cancellation (Chrome 153+):** Leverages `context.signal` (`AbortSignal`) to abort in-flight requests if the agent cancels the action.
 * **Registered Tools:**
-  * `feniks_pretraga`: Handles complex property filtering (Transaction Type, Property Type, Location, Budget).
-  * `feniks_detalji`: Fetches full technical specifications and descriptions using a unique property ID.
+  * `feniks_pretraga`: Handles complex property filtering.
+  * `feniks_detalji`: Fetches full technical specifications via unique ID.
 
 ### 2. Secure Backend Relay (PHP / MySQL)
-The backend acts as a hardened same-origin REST relay between the client-side WebMCP code and the database:
-* **Read-Only Protocol:** The agent has read-only access to prevent unintended database mutations.
-* **Context Budgeting:** In compliance with WebMCP security guidelines, property descriptions are automatically truncated to 1,000 characters to respect the LLM context window limits.
-* **SQL Injection Protection:** All database queries strictly enforce Prepared Statements (`bind_param`).
-* **Security Annotations:** Tools include `readOnlyHint: true` to signal safe execution to the AI agent.
+* **Read-Only Protocol:** The agent has read-only access to prevent database mutations.
+* **Context Budgeting:** Property descriptions are automatically truncated to 1,000 characters to respect LLM context window limits.
+* **Security:** All database queries strictly enforce Prepared Statements (`bind_param`).
 
 ---
 
 ## 🤖 AI Interaction & Tool Chaining
 
-The agent natively interprets Serbian language queries, maps informal inputs to structured `enum` parameters, and chains tool calls automatically.
+The agent natively interprets Serbian language queries and chains tool calls automatically.
 
 **Example Multi-Turn Journey:**
 * **User:** *"Pronađi mi stan za prodaju u Zemunu do 200.000 evra i prikaži detalje za najjeftiniji."*
 * **Agent Execution:**
-  1. Invokes `feniks_pretraga` with `{ akcija: "Prodaja", tip: "Stan", lokacija: "Zemun", budzet_do: 200000 }`.
-  2. Parses the JSON output from the PHP API and identifies the lowest-priced property ID.
-  3. Automatically invokes `feniks_detalji` with `{ id: "10664-1" }` to retrieve technical details.
+  1. Invokes `feniks_pretraga` with JSON parameters.
+  2. Identifies the lowest-priced property ID from the results.
+  3. Automatically invokes `feniks_detalji` to retrieve full data.
 
 ---
 
-## 🔍 Verification & Evals
+## 🔍 Verification & Visual Proof
 
-System behavior and tool invocations were verified using:
-* **Model Context Tool Inspector** (Official Chrome Extension).
-* Deterministic testing of PHP REST endpoints.
-* Failure mode testing (handling empty database responses and connection timeouts).
+### 🌐 Official Origin Trial Registration
+![Origin Trial Registration](https://github.com/sistemfeniks06-droid/webmcp-realestate-live/blob/main/server/server/gtm/assets/origin-trial-registration.png.png?raw=true)
+
+### 📺 Live Demo: WebMCP Inspector in Action
+Check out how the agent discovers tools and retrieves live data from feniks.rs:
+
+https://github.com/sistemfeniks06-droid/webmcp-realestate-live/blob/main/server/server/gtm/assets/inspector%20demo%20.webm?raw=true
 
 ---
 
@@ -63,11 +64,14 @@ System behavior and tool invocations were verified using:
 
 ```text
 ├── /server
-│   ├── pretraga-api.php    # Secure PHP endpoint for property search
-│   └── detalji-api.php     # Secure PHP endpoint for property details
+│   ├── pretraga-api.php            # Secure PHP search endpoint
+│   └── detalji-api.php             # Secure PHP details endpoint
 ├── /gtm
-│   └── webmcp-gtm-tag.js   # Clean JavaScript snippet for GTM Tag
-├── /assets
-│   ├── origin-trial.png    # Proof of Chrome Origin Trial registration
-│   └── inspector-logs.png  # Screenshots of successful AI tool calls
+│   └── webmcp-gtm-tag.js           # GTM Tool Registration script
+├── /server/server/gtm/assets/      # Proof of registration and demo video
 └── README.md
+
+
+
+
+
