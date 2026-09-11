@@ -1,73 +1,68 @@
-# Feniks Real Estate | WebMCP & AI Agent Integration
+```
+# Feniks Real Estate | WebMCP Production Integration &amp; Evals Discrepancy Case Study
 
-This repository demonstrates a real-world, production implementation of the **WebMCP (Web Model Context Protocol)** API on a real estate platform ([feniks.rs](https://www.feniks.rs)). 
+This repository demonstrates a real-world, production implementation of the **WebMCP (Web Model Context Protocol)** API on a real estate platform ([feniks.rs](https://www.feniks.rs/)).
 
-The project connects Google Tag Manager (GTM), an air-gapped PHP/MySQL backend, and browser-native AI agent capabilities into a unified, secure system.
+The project connects Google Tag Manager (GTM), an air-gapped PHP/MySQL REST backend, and browser-native AI agent capabilities with **zero frontend code modifications**.
 
 ---
 
 ## 🌐 Google Chrome Origin Trial Participant
 
-This project participates in the official **Google Chrome WebMCP Origin Trial**. 
+This project actively participates in the official **Google Chrome WebMCP Origin Trial**.
 
-> **Disclaimer & Experimental Status:**  
-> WebMCP is an emerging W3C Community Group proposal currently undergoing testing. The tools registered on `feniks.rs` are available to compatible browser agents (Chrome 149+ / Edge 147+) via Origin Trial tokens or by enabling `chrome://flags/#enable-webmcp-testing`.  
-> For browsers without native WebMCP support, the site degrades gracefully with **zero impact** on human user experience (*Progressive Enhancement*).
+Tools registered on `feniks.rs` are exposed to compatible browser agents (Chrome 149+ / Edge 147+) via Origin Trial tokens or by enabling `chrome://flags/#enable-webmcp-testing`.
 
 ---
 
 ## 🛠 Project Architecture
 
-The implementation uses Google Tag Manager (GTM) to declaratively expose tools to the browser's model context while relying on a secure, hardened PHP REST relay on the server side.
+The implementation uses Google Tag Manager (GTM) to declaratively expose imperative tools to the browser's model context while relying on a secure, hardened PHP REST relay on the server side.
 
-### 1. Client-Side Registration (GTM & API Standards Compatibility)
+### 1. Zero-Frontend Deployment via GTM
 Tools are registered dynamically via Google Tag Manager using modern WebMCP standards:
-* **API Compatibility:** Adheres to the Chrome 150+ / 152+ standard using `document.modelContext` with fallbacks (`document.modelContext || window.navigator.modelContext`).
-* **Execution Cancellation (Chrome 153+):** Leverages `context.signal` (`AbortSignal`) passed to the `execute(input, context)` function, ensuring in-flight `fetch()` requests are aborted if the agent or user cancels the action.
+* **API Standards Compatibility:** Adheres to Chrome 150+ / 152+ standards using `document.modelContext` with fallbacks (`document.modelContext || window.navigator.modelContext`).
+* **Execution Cancellation (Chrome 153+):** Leverages `context.signal` (`AbortSignal`) passed to `execute(input, context)`, ensuring in-flight `fetch()` requests are aborted if the agent or user cancels the query.
 * **Registered Tools:**
-  * `feniks_pretraga`: Handles complex property filtering (Transaction Type, Property Type, Location, Budget).
-  * `feniks_detalji`: Fetches full technical specifications and descriptions using a unique property ID.
+  1. `feniks_pretraga`: Handles property filtering (Transaction, Type, Location, Structure, Budget).
+  2. `feniks_detalji`: Fetches full technical specifications and descriptions via internal ID or public listing code.
+  3. `feniks_info_usluge`: Provides official agency contact details, office location, and service links.
 
-### 2. Secure Backend Relay (PHP / MySQL)
-The backend acts as a hardened same-origin REST relay between the client-side WebMCP code and the database:
-* **Read-Only Protocol:** The agent has read-only access to prevent unintended database mutations.
-* **Context Budgeting:** In compliance with WebMCP security guidelines, property descriptions are automatically truncated (e.g., to 1,000 characters) to respect the recommended ~1.5K character output budget and prevent LLM context overflows.
-* **SQL Injection Protection:** All database queries strictly enforce Prepared Statements (`bind_param`).
-* **Security Annotations:** Tools include `readOnlyHint: true` to signal safe execution to the AI agent.
-
----
-
-## 🤖 AI Interaction & Tool Chaining
-
-The agent natively interprets Serbian language queries, maps informal inputs to structured `enum` parameters, and chains tool calls automatically.
-
-**Example Multi-Turn Journey:**
-* **User:** *"Pronađi mi stan za prodaju u Zemunu do 200.000 evra i prikaži detalje za najjeftiniji."*
-* **Agent Execution:**
-  1. Invokes `feniks_pretraga` with `{ akcija: "Prodaja", tip: "Stan", lokacija: "Zemun", budzet_do: 200000 }`.
-  2. Parses the JSON output from the PHP API and identifies the lowest-priced property ID.
-  3. Automatically invokes `feniks_detalji` with `{ id: "10664-1" }` to retrieve technical details.
+### 2. Hardened PHP REST Relay
+* **Read-Only Protocol:** All endpoints enforce `annotations: { readOnlyHint: true }` to signal non-mutating execution.
+* **Canonical SEO URL Injection:** Automatically formats and returns exact property URLs (`https://www.feniks.rs/nekretnina/{id}`) directly in search and detail payloads.
+* **Context Budgeting:** Property descriptions are automatically truncated to 1,000 characters to comply with the recommended ~1.5K character output budget and prevent LLM context overflows.
+* **SQL Injection Safeguards:** All database queries strictly enforce MySQL Prepared Statements (`bind_param`).
 
 ---
 
-## 🔍 Verification & Evals
+## 📊 Evals Discrepancy: Tool Inspector vs. Live LLM Agent
 
-System behavior, schema validation, and tool invocations were verified using:
-* **Model Context Tool Inspector** (Official Chrome Extension).
-* Deterministic testing of PHP REST endpoints.
-* Failure mode testing (handling empty database responses and connection timeouts gracefully).
+Through extensive production testing, we identified a key distinction between synthetic and probabilistic evaluations:
+
+1. **Model Context Tool Inspector (Synthetic Eval):**
+   * Validates tool registration syntax and JSON Schema compliance.
+   * Returns a `200 OK PASS` even if payloads return raw database IDs without canonical routing context.
+2. **Live LLM Agent (Probabilistic Eval):**
+   * Fails or stumbles during natural language user journeys when tools return raw primary keys (`id: 47`), as the agent cannot infer site-specific SEO URL routes (`/nekretnina/47`).
+   * **Production Fix:** Injecting explicit canonical URLs (`"url": "https://www.feniks.rs/nekretnina/47"`) directly into the REST payload resolved agent hallucinations and enabled instant, single-turn URL rendering for end users.
 
 ---
 
 ## 📁 Repository Structure
 
-├── /server │   ├── pretraga-api.php    # Secure PHP endpoint for property search │   └── detalji-api.php     # Secure PHP endpoint for property details ├── /gtm │   └── webmcp-gtm-tag.html # Clean ASCII JavaScript snippet for GTM Custom HTML Tag └── README.md
+```text
+├── /server
+│   ├── pretraga-api.php   # Secure PHP REST endpoint for property search &amp; SEO URLs
+│   └── detalji-api.php    # Secure PHP REST endpoint for property details &amp; context budgeting
+├── /gtm
+│   └── webmcp-gtm-tag.js  # Production GTM JavaScript snippet (3 registered tools)
+└── README.md              # Project documentation &amp; Case Study
+
+```
 
 ---
 
-## 🙏 Acknowledgements
 
-Special thanks to the **Google Chrome WebMCP Team** for providing access to the Origin Trial program and enabling developers to shape the future of the agentic web.
 
-**Live Website:** [feniks.rs](https://www.feniks.rs)  
-**Developer:** NinoslavPetrusic
+
